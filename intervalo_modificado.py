@@ -1,17 +1,29 @@
 import cv2
+import numpy as np
+from picamera2 import Picamera2, Preview
+import time
 
-# Inicializa a captura de vídeo da câmera do notebook
-cap = cv2.VideoCapture(0)
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+# Inicializa a câmera Pi
+picam2 = Picamera2()
+picam2.preview_configuration.main.size = (640, 480)
+picam2.preview_configuration.main.format = "RGB888"
+picam2.preview_configuration.controls.FrameRate = 30
+picam2.configure("preview")
+picam2.start()
+
+# Permite que a câmera aqueça
+time.sleep(0.1)
 
 # Inicializa o detector de objetos
 object_detector = cv2.createBackgroundSubtractorMOG2(history=100, varThreshold=40)
 
+# Definir intervalo de tamanho (em pixels)
+min_width, min_height = 30, 30
+max_width, max_height = 200, 200
+
 while True:
-    ret, frame = cap.read()
-    if not ret:
-        break
+    # Captura o frame da câmera
+    frame = picam2.capture_array()
 
     # Aplica filtro Gaussiano para suavizar a imagem e reduzir ruído
     blurred_frame = cv2.GaussianBlur(frame, (5, 5), 0)
@@ -35,7 +47,8 @@ while True:
         area = cv2.contourArea(cnt)
         if area > 500:  # Filtra pequenas áreas
             x, y, w, h = cv2.boundingRect(cnt)
-            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            if min_width <= w <= max_width and min_height <= h <= max_height:
+                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
     # Mostra os frames processados
     cv2.imshow("Frame", frame)
@@ -46,5 +59,4 @@ while True:
         break
 
 # Libera os recursos
-cap.release()
 cv2.destroyAllWindows()
