@@ -1,14 +1,15 @@
 import cv2
 import numpy as np
-from picamera.array import PiRGBArray
-from picamera import PiCamera
+from picamera2 import Picamera2, Preview
 import time
 
 # Inicializa a câmera Pi
-camera = PiCamera()
-camera.resolution = (640, 480)
-camera.framerate = 30
-rawCapture = PiRGBArray(camera, size=(640, 480))
+picam2 = Picamera2()
+picam2.preview_configuration.main.size = (640, 480)
+picam2.preview_configuration.main.format = "RGB888"
+picam2.preview_configuration.controls.FrameRate = 30
+picam2.configure("preview")
+picam2.start()
 
 # Permite que a câmera aqueça
 time.sleep(0.1)
@@ -16,12 +17,12 @@ time.sleep(0.1)
 # Inicializa o detector de objetos
 object_detector = cv2.createBackgroundSubtractorMOG2(history=100, varThreshold=40)
 
-# Loop principal para capturar e processar os frames
-for frame in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
-    image = frame.array
+while True:
+    # Captura o frame da câmera
+    frame = picam2.capture_array()
 
     # Aplica filtro Gaussiano para suavizar a imagem e reduzir ruído
-    blurred_frame = cv2.GaussianBlur(image, (5, 5), 0)
+    blurred_frame = cv2.GaussianBlur(frame, (5, 5), 0)
 
     # Aplica o detector de objetos
     mask = object_detector.apply(blurred_frame)
@@ -42,14 +43,11 @@ for frame in camera.capture_continuous(rawCapture, format="bgr", use_video_port=
         area = cv2.contourArea(cnt)
         if area > 500:  # Filtra pequenas áreas
             x, y, w, h = cv2.boundingRect(cnt)
-            cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
     # Mostra os frames processados
-    cv2.imshow("Frame", image)
+    cv2.imshow("Frame", frame)
     cv2.imshow("Mask", mask)
-
-    # Limpa o stream para o próximo frame
-    rawCapture.truncate(0)
 
     # Verifica se a tecla 'q' foi pressionada para sair do loop
     if cv2.waitKey(1) & 0xFF == ord('q'):
